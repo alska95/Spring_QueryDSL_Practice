@@ -3,6 +3,7 @@ package com.example.querydsl;
 import com.example.querydsl.entity.Member;
 import com.example.querydsl.entity.QMember;
 import com.example.querydsl.entity.Team;
+import com.querydsl.core.QueryResults;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import javax.transaction.Transactional;
 import java.util.List;
 
 import static com.example.querydsl.entity.QMember.member;
+import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
@@ -55,7 +57,7 @@ public class QuerydslBasicTest{
                 .setParameter("name", "member1")
                 .getSingleResult();
 
-        Assertions.assertThat(findMember.getName()).isEqualTo("member1");
+        assertThat(findMember.getName()).isEqualTo("member1");
 
     }
 
@@ -71,7 +73,7 @@ public class QuerydslBasicTest{
                 .from(m)
                 .where(m.name.eq("member1")) //파라미터 바인딩 안해줘도 댐. prepare statement로 알아서 해준다.
                 .fetchOne();
-        Assertions.assertThat(findMember.getName()).isEqualTo("member1");
+        assertThat(findMember.getName()).isEqualTo("member1");
     }
 
 
@@ -79,14 +81,14 @@ public class QuerydslBasicTest{
     public void QTypes(){
         queryFactory = new JPAQueryFactory(em) ;
         QMember m = new QMember("m");
-        QMember m2 = QMember.member;
+        QMember m2 = member;
 
         Member findMember = queryFactory
                 .select(member) //static으로 호출할수도 있음.
                 .from(member)
                 .where(member.name.eq("member1")) //파라미터 바인딩 안해줘도 댐. prepare statement로 알아서 해준다.
                 .fetchOne();
-        Assertions.assertThat(findMember.getName()).isEqualTo("member1");
+        assertThat(findMember.getName()).isEqualTo("member1");
     }
 
     @Test
@@ -108,7 +110,68 @@ public class QuerydslBasicTest{
                         ,member.name.startsWith("member") //,로 구분 지을경우 NULL을 무시해 주기 때문에 동적 쿼리를 매우 손쉽게 작성 가능하다.
                                 )
                 .fetchOne();
-        Assertions.assertThat(findMember.getName()).isEqualTo("member1");
+        assertThat(findMember.getName()).isEqualTo("member1");
+
+    }
+
+    @Test
+    public void getResult(){
+        queryFactory = new JPAQueryFactory(em) ;
+        List<Member> fetch = queryFactory.selectFrom(member).fetch();//list 조회
+        Member member0 = queryFactory.selectFrom(QMember.member).fetchOne();//단건 조회
+        Member member1 = queryFactory.selectFrom(QMember.member).fetchFirst();//첫번째 것만 조회. == .limit(1).fetchOne();
+        QueryResults<Member> results = queryFactory.selectFrom(QMember.member).fetchResults(); //QueryResult형으로 반환, result로 여러 조작을 할 수 있다.
+        results.getTotal(); //쿼리가 한번 더 실행된다. 컨텐츠를 가져오는 쿼리와 count가져오는 쿼리가 다를 경우 (성능때문에) 사용하지 않는 것이 좋다.
+        results.getResults();
+
+        long total = queryFactory.selectFrom(member).fetchCount();
+
+    }
+    
+    /**
+     * 회원 정렬 순서
+     * 1. 회원 나이 내림차순(desc)
+     * 2. 회원 이름 오름차순(asc)
+     * 단 회원 이름이 없으면 마지막에 출력(nulls last)*/
+    @Test
+    public void sort(){
+        queryFactory = new JPAQueryFactory(em);
+        em.persist(new Member(null, 100));
+        em.persist(new Member("member5" , 90));
+        em.persist(new Member("member6" , 90));
+
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.gt(1))
+                .orderBy(member.age.desc(), member.name.asc().nullsLast())
+                .fetch();
+
+        for (Member member1 : result) {
+            System.out.println("member1.getName() = " + member1.getName());
+            System.out.println("member1.getAge() = " + member1.getAge());
+        }
+    }
+
+    @Test
+    public void pageing(){
+        queryFactory = new JPAQueryFactory(em);
+        List<Member> result = queryFactory.selectFrom(member)
+                .orderBy(member.name.desc())
+                .offset(1)
+                .limit(2)
+                .fetch();
+
+        assertThat(result.size()).isEqualTo(2);
+
+        QueryResults<Member> results = queryFactory.selectFrom(member)
+                .orderBy(member.name.desc())
+                .offset(1)
+                .limit(2)
+                .fetchResults();
+        assertThat(results.getTotal()).isEqualTo(4); //count쿼리가 어떻게 다른가? 알아보기
+        assertThat(results.getLimit()).isEqualTo(2);
+        assertThat(results.getOffset()).isEqualTo(1);
+        assertThat(results.getResults().size()).isEqualTo(2);
 
     }
 
