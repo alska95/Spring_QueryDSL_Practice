@@ -2,8 +2,10 @@ package com.example.querydsl;
 
 import com.example.querydsl.entity.Member;
 import com.example.querydsl.entity.QMember;
+import com.example.querydsl.entity.QTeam;
 import com.example.querydsl.entity.Team;
 import com.querydsl.core.QueryResults;
+import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +18,7 @@ import javax.transaction.Transactional;
 import java.util.List;
 
 import static com.example.querydsl.entity.QMember.member;
+import static com.example.querydsl.entity.QTeam.*;
 import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
@@ -175,5 +178,45 @@ public class QuerydslBasicTest{
 
     }
 
+    @Test
+    public void aggregation(){
+        queryFactory = new JPAQueryFactory(em);
+        List<Tuple> result = queryFactory.select(
+                member.count()
+                , member.age.sum()
+                , member.age.avg()
+                , member.age.max()
+                , member.age.min()
+        )
+                .from(member)
+                .fetch(); //집합은 튜플로 조회하게된다.
+        Tuple tuple = result.get(0);
+        assertThat(tuple.get(member.count())).isEqualTo(4);
+        System.out.println("member.age.avg() = " + member.age.avg());
+        System.out.println("member.age.max() = " + member.age.max());
+        System.out.println("member.age.min() = " + member.age.min());
+
+    }
+
+    /**
+     * 팀의 이름과 각 팀의 평균 연령을 구해라.
+     * */
+    @Test
+    public void group(){
+        List<Tuple> result = queryFactory.select(team.name, member.age.avg())
+                .from(member)
+                .join(member.team(), team)
+                .groupBy(team.name)
+                .having(member.age.gt(0))
+                .fetch();
+
+        Tuple teamA = result.get(0);
+        Tuple teamB = result.get(1);
+
+        assertThat(teamA.get(team.name)).isEqualTo("teamA");
+        assertThat(teamA.get(member.age.avg())).isEqualTo(15);
+
+        assertThat(teamB.get(team.name)).isEqualTo("teamB");
+    }
 
 }
