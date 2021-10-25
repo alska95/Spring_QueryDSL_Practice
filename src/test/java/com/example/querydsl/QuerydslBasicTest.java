@@ -33,6 +33,8 @@ public class QuerydslBasicTest{
 
     @BeforeEach
     public void before(){
+
+        queryFactory = new JPAQueryFactory(em);
         Team teamA = new Team("teamA");
         Team teamB = new Team("teamB");
 
@@ -203,11 +205,12 @@ public class QuerydslBasicTest{
      * */
     @Test
     public void group(){
+        queryFactory = new JPAQueryFactory(em);
         List<Tuple> result = queryFactory.select(team.name, member.age.avg())
                 .from(member)
                 .join(member.team(), team)
                 .groupBy(team.name)
-                .having(member.age.gt(0))
+//                .having(member.age.gt(0))
                 .fetch();
 
         Tuple teamA = result.get(0);
@@ -219,4 +222,115 @@ public class QuerydslBasicTest{
         assertThat(teamB.get(team.name)).isEqualTo("teamB");
     }
 
+    /**
+     * 조인의 기본문법
+     * 조인의 기본 문법은 첫 번째 파라미터에 조인 대상을 지정하고,
+     * 두 번째 파라미터에 별칭으로 사용할 Q타입을 지정하면된다.
+     * */
+    @Test
+    public void join(){
+        queryFactory = new JPAQueryFactory(em);
+        List<Member> result = queryFactory.selectFrom(member)
+                .join(member.team(), team)
+//                .leftJoin(member.team(), team)
+//                .rightJoin(member.team(), team)
+                .where(team.name.eq("teamA"))
+                .fetch();
+
+        assertThat(result)
+                .extracting("name")
+                .containsExactly("member1", "member2");
+    }
+
+    /**
+     * 세타 조인
+     * 회원의 이름이 팀 이름과 같은 회원을 조회 //억지 연관 없는애들 조인
+     * */
+    @Test // cross join 카르테시안 곱
+    public void theta_join(){
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+
+        List<Member> result = queryFactory
+                .select(member)
+                .from(member, team)
+                .where(member.name.eq(team.name))
+                .fetch();
+
+        assertThat(result)
+                .extracting("name")
+                .containsExactly("teamA", "teamB");
+    }
+
+    /**
+     * 회원과 팀을 조인 하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회
+     * JPQL: select m, t from Member m left join m.team t on t.name = 'teamA'
+     */
+    @Test
+    public void join_on_filtering(){
+        queryFactory = new JPAQueryFactory(em);
+        List<Tuple> result = queryFactory.select(member, team)
+                .from(member)
+                .leftJoin(member.team(), team) //join으로 바꾸면 innerjoin이 걸려서 teamA가 아닌애들은 아얘 안나옴.
+                .on(team.name.eq("teamA")) //leftjoin시 반드시 on사용 where로 걸러버리면 다 사라지기 때문
+                .fetch(); //결과가 튜플로 나오는 이유는 select가 여러가지 타입을 가지고 있기 때문.
+
+        for(Tuple tuple : result){
+            System.out.println("tuple = " + tuple);
+        }
+
+    }
+
+    /**
+     * 연관 관계가 없는 엔티티 외부조인
+    * */
+
+    @Test
+    public void join_on_no_relation(){
+        em.persist(new Member("teamA"));
+        em.persist(new Member("teamB"));
+
+        List<Tuple> result  = queryFactory.select(member, team)
+                .from(member)
+                .leftJoin(team) //막조인 할꺼니까 member.team이렇게 안써도댐 on절은 join대상을 줄여준다. (member.team이렇게 쓰면 아이디(pk)를 매칭시켜주는것)
+                .on(member.name.eq(team.name)).fetch();
+
+        for (Tuple tuple : result) {
+            System.out.println("tuple = " + tuple);
+        }
+        /**
+         * 일반 조인 : leftJoin(member.team, team).where(xxx)
+         * on조인 : from(member).leftJoin(team).on(xxx)*/
+
+        /**
+         * Fetch Join
+         * 패치 조인은 sql에서 제공하는 기능은 아니고, sql을 활용해서 연관된 엔티티를 sql 한번에 전부 조회하는 기능이다.
+         * 주로 성능 최적화에 사용된다.
+         * */
+    }
+
+    @Test
+    public void noFetchJoin(){
+        em.flush();
+        em.clear();
+
+        Member member1 = queryFactory.selectFrom(member)
+                .where(member.name.eq("member1"))
+                .fetchOne();
+
+    }
+
+    @Test
+    public void FetchJoin(){
+        em.flush();
+        em.clear();
+
+        Member member1 = queryFactory.selectFrom(member)
+                .join(member.team(), team).fetchJoin()
+                .where(member.name.eq("member1"))
+                .fetchOne();
+
+        System.out.println("member1 = " + member1);
+
+    }
 }
