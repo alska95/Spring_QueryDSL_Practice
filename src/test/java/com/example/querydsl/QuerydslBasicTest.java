@@ -6,12 +6,14 @@ import com.example.querydsl.entity.QTeam;
 import com.example.querydsl.entity.Team;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.xmlunit.xpath.JAXPXPathEngine;
 
 import javax.persistence.EntityManager;
 import javax.transaction.Transactional;
@@ -331,6 +333,77 @@ public class QuerydslBasicTest{
                 .fetchOne();
 
         System.out.println("member1 = " + member1);
+
+    }
+
+    /**
+     * subQuery는 querydsl.jpa.JPAExpression을 통해 사용할 수 있다.
+     * 
+     * 1. 나이가 가장 많은 회원 조회
+     * 2. 나이가 평균 이상인 회원 조회
+     * 3. in 사용
+     * 4. select절에 사용*/
+    @Test
+    public void subQuery(){
+        
+        QMember memberSub = new QMember("membersub"); //allias 분리를 위함.
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.eq(
+                        JPAExpressions.select(memberSub.age.max())
+                                .from(memberSub)
+                ))
+                .fetch();
+        System.out.println("1 ================== result.get(0).getAge() = " + result.get(0).getAge());
+
+        //goe
+        List<Member> result2 = queryFactory
+                .selectFrom(member)
+                .where(member.age.goe(
+                        JPAExpressions.select(memberSub.age.avg())
+                                .from(memberSub)
+                ))
+                .fetch();
+        for (Member member1 : result2) {
+            System.out.println("2 ================== member1.getAge() = " + member1.getAge());
+        }
+
+        //in절 사용
+        List<Member> result3 = queryFactory
+                .selectFrom(member)
+                .where(member.age.in(
+                        JPAExpressions
+                                .select(memberSub.age)
+                                .from(memberSub)
+                                .where(member.age.gt(10))
+                ))
+                .fetch();
+        for (Member member1 : result3) {
+            System.out.println("3 ================== member1.getAge() = " + member1.getAge());
+        }
+        //select절에 사용
+        List<Tuple> result4 = queryFactory
+                .select(member.name,
+                        JPAExpressions
+                                .select(memberSub.age.avg())
+                                .from(memberSub))
+                .from(member)
+                .fetch();
+
+        for (Tuple tuple : result4) {
+            System.out.println("4 ================== tuple = " + tuple);
+        }
+
+        /**
+         * JPA를 사용시, SUBquery한계:
+         * from 절에서의 SubQuery(인라인 뷰)가 불가능하다.
+         * 하이버네이트 구현체를 사용하면 select절의 서브쿼리는 지원한다.
+         *
+         * from 절의 서브쿼리 해결방법
+         * 1. 서브쿼리를 join으로 변경한다. (가능한 상황도 있고, 불가능한 상황도 있다.)
+         * 2. 애플리케이션 쿼리를 2번 분리해서 실행한다.
+         * 3. nativeSQL을 사용한다.
+         * */
 
     }
 }
