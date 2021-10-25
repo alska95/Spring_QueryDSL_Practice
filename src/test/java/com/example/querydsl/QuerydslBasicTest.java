@@ -6,6 +6,8 @@ import com.example.querydsl.entity.QTeam;
 import com.example.querydsl.entity.Team;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.assertj.core.api.Assertions;
@@ -45,8 +47,8 @@ public class QuerydslBasicTest{
 
         Member member1 = new Member("member1", 10 , teamA);
         Member member2 = new Member("member2", 20 , teamA);
-        Member member3 = new Member("member3", 10 , teamB);
-        Member member4 = new Member("member4", 20 , teamB);
+        Member member3 = new Member("member3", 30 , teamB);
+        Member member4 = new Member("member4", 40 , teamB);
 
         em.persist(member1);
         em.persist(member2);
@@ -406,4 +408,65 @@ public class QuerydslBasicTest{
          * */
 
     }
+
+    /** Case문*/
+    @Test
+    public void caseQuery(){
+
+        //단순한 조건
+        List<String> result = queryFactory
+                .select(member.age
+                        .when(10).then("열살")
+                .when(20).then("스무살")
+                .otherwise("기타"))
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("케이스문1 = " + s);
+        }
+
+        //복잡한 조건
+        List<String> result2 = queryFactory.select(
+                new CaseBuilder()
+                        .when(member.age.between(0, 20)).then("0~20살")
+                        .when(member.age.between(21, 30)).then("21~30살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+        for (String s : result2) {
+            System.out.println("케이스문2 = " + s);
+        }
+    }
+
+    /**
+     * 상수 문자열 concat
+     */
+
+    @Test
+    public void constant(){
+        List<Tuple> a = queryFactory
+                .select(member.name, Expressions.constant("A"))
+                .from(member)
+                .fetch();
+
+        for (Tuple tuple : a) {
+            System.out.println("tuple = " + tuple);
+        }
+    }
+
+    @Test
+    public void concat(){
+        //원하는 형식 name_age
+        List<String> fetch = queryFactory
+                .select(member.name.concat("_").concat(member.age.stringValue()))    //concat은 문자열끼리 더해야 하므로 형변환을 해줘야한다. cast(member.age as char)
+                .from(member)
+                .where(member.name.eq("member1"))
+                .fetch();
+
+        for (String s : fetch) {
+            System.out.println("s = " + s);
+        }
+    }
+
 }
