@@ -1,10 +1,16 @@
 package com.example.querydsl.repository;
 
+import com.example.querydsl.dto.MemberSearchCondition;
+import com.example.querydsl.dto.MemberTeamDto;
+import com.example.querydsl.dto.QMemberTeamDto;
 import com.example.querydsl.entity.Member;
 import com.example.querydsl.entity.QMember;
+import com.example.querydsl.entity.QTeam;
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
@@ -12,6 +18,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static com.example.querydsl.entity.QMember.*;
+import static com.example.querydsl.entity.QTeam.*;
+import static org.springframework.util.StringUtils.*;
 
 @Repository //DAO
 //@AllArgsConstructor
@@ -67,6 +75,39 @@ public class MemberJPARepository {
         return queryFactory
                 .selectFrom(member)
                 .where(member.name.eq(name))
+                .fetch();
+    }
+
+
+    /**
+     * 동적 쿼리 주의할점
+     * 조건이 없으면 걍 다끌고 오기 때문에
+     * 기본 조건을 하나정도는 주는게 좋다. (limit 등)*/
+    public List<MemberTeamDto> searchByBuilder(MemberSearchCondition condition){
+        BooleanBuilder builder = new BooleanBuilder();
+        if(hasText(condition.getName())){
+           builder.and(member.name.eq(condition.getName()));
+        }
+        if(hasText(condition.getTeamName())){
+            builder.and(team.name.eq(condition.getTeamName()));
+        }
+        if(condition.getAgeGoe() != null){
+            builder.and(member.age.goe(condition.getAgeGoe()));
+        }
+        if(condition.getAgeLoe()!= null){
+            builder.and(member.age.loe(condition.getAgeLoe()));
+        }
+        return queryFactory
+                .select(new QMemberTeamDto(
+                        member.id.as("memberId"),
+                        member.name,
+                        member.age,
+                        team.id.as("teamId"),
+                        team.name.as("teamName")
+                ))
+                .from(member)
+                .leftJoin(member.team() , team)
+                .where(builder)
                 .fetch();
     }
 }
