@@ -1,11 +1,16 @@
 package com.example.querydsl;
 
+import com.example.querydsl.dto.MemberDto;
+import com.example.querydsl.dto.QMemberDto;
+import com.example.querydsl.dto.UserDto;
 import com.example.querydsl.entity.Member;
 import com.example.querydsl.entity.QMember;
 import com.example.querydsl.entity.QTeam;
 import com.example.querydsl.entity.Team;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -469,4 +474,84 @@ public class QuerydslBasicTest{
         }
     }
 
+
+    /**
+     * 프로잭션
+     * 프로잭션으로 select 대상 type 지정 가능하다.
+     * 프로젝션 대상이 하나일 경우, 타입을 명확하게 지정할 수 있다.
+     * 프로젝션 대상이 둘 이상이면 튜플이나 DTO로 조회한다.*/
+    @Test
+    public void projection(){
+        List<String> solType = queryFactory.select(member.name)
+                .from(member)
+                .fetch();//명확히 지정되어 나온다.
+
+        List<Tuple> manyType = queryFactory.select(member.name, member.age)
+                .from(member)
+                .fetch();//튜플로 나온다
+
+        for (Tuple tuple : manyType) {
+            System.out.println("tuple = " + tuple);
+            System.out.println("tuple.get(member.name) = " + tuple.get(member.name));
+            System.out.println("tuple.get(member.age) = " + tuple.get(member.age));
+        }
+        /**
+         * 튜플이 뭐냐하면, 타입을 여러개 지정해 놓을 경우를 대비하여 만들어 놓은 타입이다.
+         * 튜플은 com.queryDsl.core꺼임 -> repository계층 안에서 쓰는건 괜찮은데,
+         * 위로 넘어가면 안좋은 설계가 될 수 있다. 나중에 하부 기술을 교체할때, 전부 바꿔야되게 될 수도 있기때문에.
+         * */
+    }
+
+    /**
+     * 프로젝션과 결과 반환 -DTO조회
+     * */
+    @Test
+    public void projectionByDtoConstructorFields(){
+//        em.createQuery("select new com.example.querydsl.dto.MemberDto(m.name , m.age) from Member m" , MemberDto.class); // JPA방식
+        /*new명령어를 사용해야함, DTO의 package 이름을 다 적어줘야함, 생성자 방식만 지원함.
+         * */
+
+        List<MemberDto> result = queryFactory
+//                .select(Projections.constructor(MemberDto.class 생성자 방식은 있는 생성자를 활용한다. 생성자를보고 들어가기 때문에 select 타입만 맞으면 된다.
+//                .select(Projections.fields(MemberDto.class 필드는 기본 생성자가 필요가 없다. 필드로 넣기 때문에, 필드 명이 같아야 한다.
+                .select(Projections.bean(MemberDto.class
+                        , member.name
+                        , member.age
+                )) //Projections setter(bean에 데이터를 인잭션)로 dto값을 넣어주고, 값을 입력한다.
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+    }
+    @Test
+    public void findUserDto(){
+//        queryFactory.select(Projections.fields(UserDto.class 이렇게 조회하면 필드명이 다르기 때문에 에러가 난다.
+        QMember subMember = new QMember("subMember");
+        List<UserDto> userName = queryFactory.select(Projections.fields(UserDto.class,
+                member.name.as("userName"),
+                ExpressionUtils.as(JPAExpressions.select(subMember.age.max()).from(subMember), "age")
+//                ,member.age
+                ))
+                .from(member)
+                .fetch();
+
+        for (UserDto userDto : userName) {
+            System.out.println("userDto = " + userDto);
+        }
+    }
+
+    /**
+     * QueryProjection --> dto도 q타입으로 생성해서 사용하는법.
+     * 장점 : 컴파일 시점에 오류 확인 할 수 있어서 안정적으로 코딩이 가능하다.
+     * 단점 : dto에 QueryDsl에 대한 의존성이 생긴다.
+     *      dto같은 경우에는 여기저기 레이어에 걸쳐서 돌아다니는데, 거추장스럽다.
+     * */
+    @Test
+    public void findDtoByQueryProjection(){
+        List<MemberDto> fetch = queryFactory.select(new QMemberDto(member.name, member.age))
+                .from(member)
+                .fetch(); //컴파일 시점에 오류 확인 가능하다.
+    }
 }
