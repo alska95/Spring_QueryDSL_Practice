@@ -677,4 +677,31 @@ public class QuerydslBasicTest {
                 .set(member.age, member.age.multiply(2))
                 .execute();
     }
+
+    /**
+     * sql function 호출하기
+     *
+     * Dialect에 등록된방언만 사용할 수 있다.
+     * 1.member의 m을 M으로 변경해달라.
+     *
+     * */
+    @Test
+    public void sqlFunctionReplace(){
+        String result = queryFactory
+                .select(Expressions
+                        .stringTemplate("function('replace',{0},{1},{2})", member.name, "member", "M"))
+                .from(member)
+                .fetchFirst();
+        System.out.println("result = " + result);
+    }
+
+    @Test
+    public void sqlFunctionLower(){
+        List<String> fetch = queryFactory
+                .select(member.name)
+                .from(member)
+                .where(member.name.eq(Expressions.stringTemplate("function('lower',{0})", member.name)))
+//                .where(member.name.eq(member.name.lower())) 안씨 표준문법에 있는 것 들은 대부분 default로 내장함.
+                .fetch();
+    }
 }
