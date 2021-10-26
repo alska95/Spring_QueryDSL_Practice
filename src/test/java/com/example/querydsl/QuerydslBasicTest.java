@@ -7,10 +7,13 @@ import com.example.querydsl.entity.Member;
 import com.example.querydsl.entity.QMember;
 import com.example.querydsl.entity.QTeam;
 import com.example.querydsl.entity.Team;
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
@@ -32,7 +35,7 @@ import static org.assertj.core.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
-public class QuerydslBasicTest{
+public class QuerydslBasicTest {
 
     @Autowired
     EntityManager em;
@@ -41,7 +44,7 @@ public class QuerydslBasicTest{
     JPAQueryFactory queryFactory;
 
     @BeforeEach
-    public void before(){
+    public void before() {
 
         queryFactory = new JPAQueryFactory(em);
         Team teamA = new Team("teamA");
@@ -50,10 +53,10 @@ public class QuerydslBasicTest{
         em.persist(teamA);
         em.persist(teamB);
 
-        Member member1 = new Member("member1", 10 , teamA);
-        Member member2 = new Member("member2", 20 , teamA);
-        Member member3 = new Member("member3", 30 , teamB);
-        Member member4 = new Member("member4", 40 , teamB);
+        Member member1 = new Member("member1", 10, teamA);
+        Member member2 = new Member("member2", 20, teamA);
+        Member member3 = new Member("member3", 30, teamB);
+        Member member4 = new Member("member4", 40, teamB);
 
         em.persist(member1);
         em.persist(member2);
@@ -63,7 +66,7 @@ public class QuerydslBasicTest{
     }
 
     @Test
-    public void startJPQL(){
+    public void startJPQL() {
         //member1 찾기
         Member findMember = em.createQuery(
                 "select m from Member m " +
@@ -76,8 +79,8 @@ public class QuerydslBasicTest{
     }
 
     @Test
-    public void startQuerydsl(){
-        queryFactory = new JPAQueryFactory(em) ; // 동시성 관리되게 처리되어 있다.
+    public void startQuerydsl() {
+        queryFactory = new JPAQueryFactory(em); // 동시성 관리되게 처리되어 있다.
         // EntityManager자체가 multiThread환경에 문제없게 설계가 되어있다.
         // 트랜잭션이 어디 걸려있냐에 따라서 트랜젝션에 bound되게 설계되어있다.
         QMember m = new QMember("m");
@@ -92,8 +95,8 @@ public class QuerydslBasicTest{
 
 
     @Test
-    public void QTypes(){
-        queryFactory = new JPAQueryFactory(em) ;
+    public void QTypes() {
+        queryFactory = new JPAQueryFactory(em);
         QMember m = new QMember("m");
         QMember m2 = member;
 
@@ -106,31 +109,31 @@ public class QuerydslBasicTest{
     }
 
     @Test
-    public void search(){
-        queryFactory = new JPAQueryFactory(em) ;
+    public void search() {
+        queryFactory = new JPAQueryFactory(em);
         Member findMember = queryFactory
                 .selectFrom(member)
                 .where(member.name.eq("member1")
-                        .and(member.age.eq(10))
-                        .and(member.name.ne("abc"))
-                        .and(member.name.eq("abc").not())
-                        .and(member.age.in(10,20)) // 20 > >= 10
-                        .and(member.age.gt(1)) // > 1
-                        .and(member.age.goe(1))
-                        .and(member.age.loe(100))
-                        .and(member.age.lt(100))
-                        .and(member.name.like("member%")) //like검색
-                        .and(member.name.contains("member")) // %member%
-                        ,member.name.startsWith("member") //,로 구분 지을경우 NULL을 무시해 주기 때문에 동적 쿼리를 매우 손쉽게 작성 가능하다.
-                                )
+                                .and(member.age.eq(10))
+                                .and(member.name.ne("abc"))
+                                .and(member.name.eq("abc").not())
+                                .and(member.age.in(10, 20)) // 20 > >= 10
+                                .and(member.age.gt(1)) // > 1
+                                .and(member.age.goe(1))
+                                .and(member.age.loe(100))
+                                .and(member.age.lt(100))
+                                .and(member.name.like("member%")) //like검색
+                                .and(member.name.contains("member")) // %member%
+                        , member.name.startsWith("member") //,로 구분 지을경우 NULL을 무시해 주기 때문에 동적 쿼리를 매우 손쉽게 작성 가능하다.
+                )
                 .fetchOne();
         assertThat(findMember.getName()).isEqualTo("member1");
 
     }
 
     @Test
-    public void getResult(){
-        queryFactory = new JPAQueryFactory(em) ;
+    public void getResult() {
+        queryFactory = new JPAQueryFactory(em);
         List<Member> fetch = queryFactory.selectFrom(member).fetch();//list 조회
         Member member0 = queryFactory.selectFrom(QMember.member).fetchOne();//단건 조회
         Member member1 = queryFactory.selectFrom(QMember.member).fetchFirst();//첫번째 것만 조회. == .limit(1).fetchOne();
@@ -141,18 +144,19 @@ public class QuerydslBasicTest{
         long total = queryFactory.selectFrom(member).fetchCount();
 
     }
-    
+
     /**
      * 회원 정렬 순서
      * 1. 회원 나이 내림차순(desc)
      * 2. 회원 이름 오름차순(asc)
-     * 단 회원 이름이 없으면 마지막에 출력(nulls last)*/
+     * 단 회원 이름이 없으면 마지막에 출력(nulls last)
+     */
     @Test
-    public void sort(){
+    public void sort() {
         queryFactory = new JPAQueryFactory(em);
         em.persist(new Member(null, 100));
-        em.persist(new Member("member5" , 90));
-        em.persist(new Member("member6" , 90));
+        em.persist(new Member("member5", 90));
+        em.persist(new Member("member6", 90));
 
         List<Member> result = queryFactory
                 .selectFrom(member)
@@ -167,7 +171,7 @@ public class QuerydslBasicTest{
     }
 
     @Test
-    public void pageing(){
+    public void pageing() {
         queryFactory = new JPAQueryFactory(em);
         List<Member> result = queryFactory.selectFrom(member)
                 .orderBy(member.name.desc())
@@ -190,7 +194,7 @@ public class QuerydslBasicTest{
     }
 
     @Test
-    public void aggregation(){
+    public void aggregation() {
         queryFactory = new JPAQueryFactory(em);
         List<Tuple> result = queryFactory.select(
                 member.count()
@@ -211,9 +215,9 @@ public class QuerydslBasicTest{
 
     /**
      * 팀의 이름과 각 팀의 평균 연령을 구해라.
-     * */
+     */
     @Test
-    public void group(){
+    public void group() {
         queryFactory = new JPAQueryFactory(em);
         List<Tuple> result = queryFactory.select(team.name, member.age.avg())
                 .from(member)
@@ -235,9 +239,9 @@ public class QuerydslBasicTest{
      * 조인의 기본문법
      * 조인의 기본 문법은 첫 번째 파라미터에 조인 대상을 지정하고,
      * 두 번째 파라미터에 별칭으로 사용할 Q타입을 지정하면된다.
-     * */
+     */
     @Test
-    public void join(){
+    public void join() {
         queryFactory = new JPAQueryFactory(em);
         List<Member> result = queryFactory.selectFrom(member)
                 .join(member.team(), team)
@@ -254,9 +258,9 @@ public class QuerydslBasicTest{
     /**
      * 세타 조인
      * 회원의 이름이 팀 이름과 같은 회원을 조회 //억지 연관 없는애들 조인
-     * */
+     */
     @Test // cross join 카르테시안 곱
-    public void theta_join(){
+    public void theta_join() {
         em.persist(new Member("teamA"));
         em.persist(new Member("teamB"));
 
@@ -276,7 +280,7 @@ public class QuerydslBasicTest{
      * JPQL: select m, t from Member m left join m.team t on t.name = 'teamA'
      */
     @Test
-    public void join_on_filtering(){
+    public void join_on_filtering() {
         queryFactory = new JPAQueryFactory(em);
         List<Tuple> result = queryFactory.select(member, team)
                 .from(member)
@@ -284,7 +288,7 @@ public class QuerydslBasicTest{
                 .on(team.name.eq("teamA")) //leftjoin시 반드시 on사용 where로 걸러버리면 다 사라지기 때문
                 .fetch(); //결과가 튜플로 나오는 이유는 select가 여러가지 타입을 가지고 있기 때문.
 
-        for(Tuple tuple : result){
+        for (Tuple tuple : result) {
             System.out.println("tuple = " + tuple);
         }
 
@@ -292,14 +296,14 @@ public class QuerydslBasicTest{
 
     /**
      * 연관 관계가 없는 엔티티 외부조인
-    * */
+     */
 
     @Test
-    public void join_on_no_relation(){
+    public void join_on_no_relation() {
         em.persist(new Member("teamA"));
         em.persist(new Member("teamB"));
 
-        List<Tuple> result  = queryFactory.select(member, team)
+        List<Tuple> result = queryFactory.select(member, team)
                 .from(member)
                 .leftJoin(team) //막조인 할꺼니까 member.team이렇게 안써도댐 on절은 join대상을 줄여준다. (member.team이렇게 쓰면 아이디(pk)를 매칭시켜주는것)
                 .on(member.name.eq(team.name)).fetch();
@@ -319,7 +323,7 @@ public class QuerydslBasicTest{
     }
 
     @Test
-    public void noFetchJoin(){
+    public void noFetchJoin() {
         em.flush();
         em.clear();
 
@@ -330,7 +334,7 @@ public class QuerydslBasicTest{
     }
 
     @Test
-    public void FetchJoin(){
+    public void FetchJoin() {
         em.flush();
         em.clear();
 
@@ -345,14 +349,15 @@ public class QuerydslBasicTest{
 
     /**
      * subQuery는 querydsl.jpa.JPAExpression을 통해 사용할 수 있다.
-     * 
+     * <p>
      * 1. 나이가 가장 많은 회원 조회
      * 2. 나이가 평균 이상인 회원 조회
      * 3. in 사용
-     * 4. select절에 사용*/
+     * 4. select절에 사용
+     */
     @Test
-    public void subQuery(){
-        
+    public void subQuery() {
+
         QMember memberSub = new QMember("membersub"); //allias 분리를 위함.
         List<Member> result = queryFactory
                 .selectFrom(member)
@@ -414,16 +419,18 @@ public class QuerydslBasicTest{
 
     }
 
-    /** Case문*/
+    /**
+     * Case문
+     */
     @Test
-    public void caseQuery(){
+    public void caseQuery() {
 
         //단순한 조건
         List<String> result = queryFactory
                 .select(member.age
                         .when(10).then("열살")
-                .when(20).then("스무살")
-                .otherwise("기타"))
+                        .when(20).then("스무살")
+                        .otherwise("기타"))
                 .from(member)
                 .fetch();
 
@@ -449,7 +456,7 @@ public class QuerydslBasicTest{
      */
 
     @Test
-    public void constant(){
+    public void constant() {
         List<Tuple> a = queryFactory
                 .select(member.name, Expressions.constant("A"))
                 .from(member)
@@ -461,7 +468,7 @@ public class QuerydslBasicTest{
     }
 
     @Test
-    public void concat(){
+    public void concat() {
         //원하는 형식 name_age
         List<String> fetch = queryFactory
                 .select(member.name.concat("_").concat(member.age.stringValue()))    //concat은 문자열끼리 더해야 하므로 형변환을 해줘야한다. cast(member.age as char)
@@ -479,9 +486,10 @@ public class QuerydslBasicTest{
      * 프로잭션
      * 프로잭션으로 select 대상 type 지정 가능하다.
      * 프로젝션 대상이 하나일 경우, 타입을 명확하게 지정할 수 있다.
-     * 프로젝션 대상이 둘 이상이면 튜플이나 DTO로 조회한다.*/
+     * 프로젝션 대상이 둘 이상이면 튜플이나 DTO로 조회한다.
+     */
     @Test
-    public void projection(){
+    public void projection() {
         List<String> solType = queryFactory.select(member.name)
                 .from(member)
                 .fetch();//명확히 지정되어 나온다.
@@ -504,9 +512,9 @@ public class QuerydslBasicTest{
 
     /**
      * 프로젝션과 결과 반환 -DTO조회
-     * */
+     */
     @Test
-    public void projectionByDtoConstructorFields(){
+    public void projectionByDtoConstructorFields() {
 //        em.createQuery("select new com.example.querydsl.dto.MemberDto(m.name , m.age) from Member m" , MemberDto.class); // JPA방식
         /*new명령어를 사용해야함, DTO의 package 이름을 다 적어줘야함, 생성자 방식만 지원함.
          * */
@@ -525,15 +533,16 @@ public class QuerydslBasicTest{
             System.out.println("memberDto = " + memberDto);
         }
     }
+
     @Test
-    public void findUserDto(){
+    public void findUserDto() {
 //        queryFactory.select(Projections.fields(UserDto.class 이렇게 조회하면 필드명이 다르기 때문에 에러가 난다.
         QMember subMember = new QMember("subMember");
         List<UserDto> userName = queryFactory.select(Projections.fields(UserDto.class,
                 member.name.as("userName"),
                 ExpressionUtils.as(JPAExpressions.select(subMember.age.max()).from(subMember), "age")
 //                ,member.age
-                ))
+        ))
                 .from(member)
                 .fetch();
 
@@ -546,12 +555,87 @@ public class QuerydslBasicTest{
      * QueryProjection --> dto도 q타입으로 생성해서 사용하는법.
      * 장점 : 컴파일 시점에 오류 확인 할 수 있어서 안정적으로 코딩이 가능하다.
      * 단점 : dto에 QueryDsl에 대한 의존성이 생긴다.
-     *      dto같은 경우에는 여기저기 레이어에 걸쳐서 돌아다니는데, 거추장스럽다.
-     * */
+     * dto같은 경우에는 여기저기 레이어에 걸쳐서 돌아다니는데, 거추장스럽다.
+     */
     @Test
-    public void findDtoByQueryProjection(){
+    public void findDtoByQueryProjection() {
         List<MemberDto> fetch = queryFactory.select(new QMemberDto(member.name, member.age))
                 .from(member)
                 .fetch(); //컴파일 시점에 오류 확인 가능하다.
+    }
+
+    /**
+     * 동적 쿼리 처리하기
+     * 처리하는 두가지 방식
+     * 1. BooleanBuilder
+     * 2. where 다중 파라미터 사용*/
+    @Test
+    public void 동적쿼리_BooleanBuilder(){
+        String nameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> members = searchMember1(nameParam, ageParam);
+        for (Member member1 : members) {
+            System.out.println("member1 = " + member1);
+        }
+
+    }
+
+    public List<Member> searchMember1(String nameCond, Integer ageCond){
+        BooleanBuilder builder = new BooleanBuilder(); // 초기값을 넣을 수도 있다.
+        if(nameCond != null){
+            builder.and(member.name.eq(nameCond));
+        }
+        if(ageCond != null){
+            builder.and(member.age.eq(ageCond));
+        }
+
+        return queryFactory.selectFrom(member)
+                .where(builder)
+                .fetch();
+    }
+
+    /**
+     * where 다중 파라미터
+     * 장점 :   사용하면 코드가 아주 깔끔해진다!
+     *         재사용성이 높다.
+     * where안에서 조건을 풀어버린다.
+     * null이면 null로, 조건이면 조건으로
+     * where 안에 null 이 들어가면 ex) where(null , null ,...)
+     * null은 무시가된다. --> 동적쿼리 가능
+   * */
+    @Test
+    public void 동적쿼리_where다중파라미터(){
+        String nameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> result = searchMember2(nameParam , ageParam);
+
+        for (Member member1 : result) {
+            System.out.println("member1 = " + member1);
+        }
+    }
+
+    private List<Member> searchMember2(String nameCond, Integer ageCond) {
+        return queryFactory
+                .selectFrom(member)
+                .where(nameEq(nameCond), ageEq(ageCond))
+//                .where(allEq(nameCond, ageCond))
+                .fetch();
+    }
+
+    private BooleanExpression nameEq(String nameCond){
+        return nameCond != null ? member.name.eq(nameCond) : null;
+    }
+
+
+    private BooleanExpression ageEq(Integer ageCond){
+        return ageCond != null ? member.age.eq(ageCond) : null;
+    }
+
+
+    private BooleanExpression allEq(String nameCond, Integer ageCond){
+        return nameEq(nameCond)
+                .and(ageEq(ageCond));
     }
 }
