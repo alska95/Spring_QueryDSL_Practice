@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.Commit;
 import org.xmlunit.xpath.JAXPXPathEngine;
 
 import javax.persistence.EntityManager;
@@ -637,5 +638,43 @@ public class QuerydslBasicTest {
     private BooleanExpression allEq(String nameCond, Integer ageCond){
         return nameEq(nameCond)
                 .and(ageEq(ageCond));
+    }
+
+    /**
+     * 원래 업데이트는 Dirty 체크 사용해서 주로 하였다.
+     * DirtyCheck 방식은 엔티티 하나당 각각 나가므로 동시에 여러개 수정할때는 효율적이지 않다.
+     * 뒤에 execute붙여서 실행 가능.
+     * 영향을 받은 row수를 반환한다.
+     * 주의 해야 하는점 :  bulk연산은 영속성 컨텍스트를 사용하지 않는다.
+     *                  bulk연산 후에, 영속성 컨텍스트의 상태와 db의 상태를 필요에 따라 동기화 시켜줘야 한다.
+     *                  그렇다고 조회시에 다른 결과가 조회되는 것은 아니다.
+     *                  왜냐하면 영속성 컨텍스트가 우선순위를 가져서 영속성컨텍스트 안에 있는 엔티티를
+     *                  db에서 조회할 경우 db조회 결과를 버리고 영속성 컨텍스트 안의 엔티티를 반환한다.
+     *                          --> Repeatable Read 격리수준(다른 트랜잭션에서 update날려서 변경해도 영속성 컨텍스트를
+     *                                                      조회하기 때문에 만족)
+    * */
+    @Test
+    public void bulkFunction(){
+        long count = queryFactory
+                .update(member)
+                .set(member.name, "황경하")
+                .where(member.age.gt(1))
+                .execute();
+
+        em.flush(); //db와 동기화
+        em.clear(); //영속성 컨텍스트 초기화
+
+        long count2 = queryFactory.delete(member)
+                .where(member.age.gt(100))
+                .execute();
+    }
+
+    @Test
+    public void bulkAddition(){
+        long count = queryFactory
+                .update(member)
+                .set(member.age, member.age.add(1))
+                .set(member.age, member.age.multiply(2))
+                .execute();
     }
 }
